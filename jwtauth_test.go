@@ -1,7 +1,6 @@
 package jwtauth_test
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -15,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var (
@@ -44,7 +43,7 @@ DLxxa5/7QyH6y77nCRQyJ3x3UwF9rUD0RCsp4sNdX5kOQ9PUyHyOtCUCAwEAAQ==
 )
 
 func init() {
-	TokenAuthHS256 = jwtauth.New(jwa.HS256.String(), TokenSecret, nil, jwt.WithAcceptableSkew(30*time.Second))
+	TokenAuthHS256 = jwtauth.New(jwa.HS256().String(), TokenSecret, nil, jwt.WithAcceptableSkew(30*time.Second))
 }
 
 //
@@ -115,7 +114,7 @@ func TestSimpleRSA(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	TokenAuthRS256 = jwtauth.New(jwa.RS256.String(), privateKey, publicKey)
+	TokenAuthRS256 = jwtauth.New(jwa.RS256().String(), privateKey, publicKey)
 
 	claims := map[string]interface{}{
 		"key":  "val",
@@ -133,11 +132,14 @@ func TestSimpleRSA(t *testing.T) {
 		t.Fatalf("Failed to decode token string %s\n", err.Error())
 	}
 
-	tokenClaims, err := token.AsMap(context.Background())
-	if err != nil {
-		t.Fatal(err.Error())
+	tokenClaims := map[string]interface{}{}
+	for _, key := range token.Keys() {
+		var v interface{}
+		if err := token.Get(key, &v); err != nil {
+			t.Fatalf("Failed to get claim %s: %v", key, err)
+		}
+		tokenClaims[key] = v
 	}
-
 	if !reflect.DeepEqual(claims, tokenClaims) {
 		t.Fatalf("The decoded claims don't match the original ones\n")
 	}
@@ -157,7 +159,7 @@ func TestSimpleRSAVerifyOnly(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	TokenAuthRS256 = jwtauth.New(jwa.RS256.String(), nil, publicKey)
+	TokenAuthRS256 = jwtauth.New(jwa.RS256().String(), nil, publicKey)
 
 	_, _, err = TokenAuthRS256.Encode(claims)
 	if err == nil {
@@ -169,9 +171,13 @@ func TestSimpleRSAVerifyOnly(t *testing.T) {
 		t.Fatalf("Failed to decode token string %s\n", err.Error())
 	}
 
-	tokenClaims, err := token.AsMap(context.Background())
-	if err != nil {
-		t.Fatal(err.Error())
+	tokenClaims := map[string]interface{}{}
+	for _, key := range token.Keys() {
+		var v interface{}
+		if err := token.Get(key, &v); err != nil {
+			t.Fatalf("Failed to get claim %s: %v", key, err)
+		}
+		tokenClaims[key] = v
 	}
 
 	if !reflect.DeepEqual(claims, tokenClaims) {
@@ -325,7 +331,7 @@ func newJwtToken(secret []byte, claims ...map[string]interface{}) string {
 		}
 	}
 
-	tokenPayload, err := jwt.Sign(token, jwt.WithKey(jwa.HS256, secret))
+	tokenPayload, err := jwt.Sign(token, jwt.WithKey(jwa.HS256(), secret))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -340,7 +346,7 @@ func newJwt512Token(secret []byte, claims ...map[string]interface{}) string {
 			token.Set(k, v)
 		}
 	}
-	tokenPayload, err := jwt.Sign(token, jwt.WithKey(jwa.HS512, secret))
+	tokenPayload, err := jwt.Sign(token, jwt.WithKey(jwa.HS512(), secret))
 	if err != nil {
 		log.Fatal(err)
 	}
