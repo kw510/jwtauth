@@ -1,3 +1,4 @@
+//go:debug rsa1024min=0
 package jwtauth_test
 
 import (
@@ -16,6 +17,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/lestrrat-go/jwx/v3/transform"
 )
 
 var (
@@ -104,14 +106,14 @@ func TestSimpleRSA(t *testing.T) {
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	publicKeyBlock, _ := pem.Decode([]byte(PublicKeyRS256String))
 
 	publicKey, err := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	TokenAuthRS256 = jwtauth.New(jwa.RS256().String(), privateKey, publicKey)
@@ -133,13 +135,10 @@ func TestSimpleRSA(t *testing.T) {
 	}
 
 	tokenClaims := map[string]interface{}{}
-	for _, key := range token.Keys() {
-		var v interface{}
-		if err := token.Get(key, &v); err != nil {
-			t.Fatalf("Failed to get claim %s: %v", key, err)
-		}
-		tokenClaims[key] = v
+	if err := transform.AsMap(token, tokenClaims); err != nil {
+		t.Fatalf("Failed to get claims %s\n", err.Error())
 	}
+
 	if !reflect.DeepEqual(claims, tokenClaims) {
 		t.Fatalf("The decoded claims don't match the original ones\n")
 	}
@@ -156,7 +155,7 @@ func TestSimpleRSAVerifyOnly(t *testing.T) {
 	publicKeyBlock, _ := pem.Decode([]byte(PublicKeyRS256String))
 	publicKey, err := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	TokenAuthRS256 = jwtauth.New(jwa.RS256().String(), nil, publicKey)
@@ -172,12 +171,8 @@ func TestSimpleRSAVerifyOnly(t *testing.T) {
 	}
 
 	tokenClaims := map[string]interface{}{}
-	for _, key := range token.Keys() {
-		var v interface{}
-		if err := token.Get(key, &v); err != nil {
-			t.Fatalf("Failed to get claim %s: %v", key, err)
-		}
-		tokenClaims[key] = v
+	if err := transform.AsMap(token, tokenClaims); err != nil {
+		t.Fatalf("Failed to get claims %s\n", err.Error())
 	}
 
 	if !reflect.DeepEqual(claims, tokenClaims) {
@@ -236,42 +231,42 @@ func TestMore(t *testing.T) {
 
 	// sending unauthorized requests
 	if status, resp := testRequest(t, ts, "GET", "/admin", nil, nil); status != 401 || resp != "token is unauthorized\n" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 
 	h := http.Header{}
 	h.Set("Authorization", "BEARER "+newJwtToken([]byte("wrong"), map[string]interface{}{}))
 	if status, resp := testRequest(t, ts, "GET", "/admin", h, nil); status != 401 || resp != "token is unauthorized\n" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 	h.Set("Authorization", "BEARER asdf")
 	if status, resp := testRequest(t, ts, "GET", "/admin", h, nil); status != 401 || resp != "token is unauthorized\n" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 	// wrong token secret and wrong alg
 	h.Set("Authorization", "BEARER "+newJwt512Token([]byte("wrong"), map[string]interface{}{}))
 	if status, resp := testRequest(t, ts, "GET", "/admin", h, nil); status != 401 || resp != "token is unauthorized\n" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 	// correct token secret but wrong alg
 	h.Set("Authorization", "BEARER "+newJwt512Token(TokenSecret, map[string]interface{}{}))
 	if status, resp := testRequest(t, ts, "GET", "/admin", h, nil); status != 401 || resp != "token is unauthorized\n" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 
 	h = newAuthHeader(map[string]interface{}{"exp": jwtauth.EpochNow() - 1000})
 	if status, resp := testRequest(t, ts, "GET", "/admin", h, nil); status != 401 || resp != "token is expired\n" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 
 	// sending authorized requests
 	if status, resp := testRequest(t, ts, "GET", "/", nil, nil); status != 200 || resp != "welcome" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 
 	h = newAuthHeader((map[string]interface{}{"user_id": 31337, "exp": jwtauth.ExpireIn(5 * time.Minute)}))
 	if status, resp := testRequest(t, ts, "GET", "/admin", h, nil); status != 200 || resp != "protected, user:31337" {
-		t.Fatalf(resp)
+		t.Fatal(resp)
 	}
 }
 

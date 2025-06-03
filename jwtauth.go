@@ -9,6 +9,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/lestrrat-go/jwx/v3/transform"
 )
 
 type JWTAuth struct {
@@ -204,16 +205,9 @@ func FromContext(ctx context.Context) (jwt.Token, map[string]interface{}, error)
 
 	var err error
 	claims := map[string]interface{}{}
-
 	if token != nil {
-		// Get all claim keys and extract private claims
-		for _, key := range token.Keys() {
-			var v interface{}
-			err = token.Get(key, &v)
-			if err != nil {
-				return token, nil, err
-			}
-			claims[key] = v
+		if err = transform.AsMap(token, claims); err != nil {
+			return token, nil, err
 		}
 	}
 
